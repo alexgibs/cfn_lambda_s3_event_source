@@ -1,0 +1,97 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Use a Lambda custom resource to add an s3 event source to another Lambda function.",
+
+  "Parameters": {
+    "s3Bucket": {
+      "Description": "Name of S3 bucket the Lambda function is hosted in",
+      "Type": "String"
+    },
+    "LambdaCustomResource": {
+      "Description": "Name of Lambda custom resource function zip file",
+      "Type": "String",
+      "Default": "addeventsource.zip"
+    },
+    "MyLambdaFunction": {
+      "Description": "Name of Lambda function to fire from s3 events",
+      "Type": "String",
+      "Default": "mylambdafunction.zip"
+    },
+    "LambdaExecutionRole": {
+      "Description": "ARN of Lambda execution role.",
+      "Type": "String"
+    }
+  },
+
+  "Resources": {
+
+    "myS3Bucket": {
+      "Type": "AWS::S3::Bucket"
+    },
+
+    "myLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "s3Bucket"
+          },
+          "S3Key": {
+            "Ref": "MyLambdaFunction"
+          }
+        },
+        "Description": "Lambda function to be triggered by S3",
+        "Handler": "index.handler",
+        "MemorySize": "128",
+        "Role": {
+          "Ref": "LambdaExecutionRole"
+        },
+        "Runtime": "nodejs",
+        "Timeout": "3"
+      }
+    },
+
+    "AddEventSource": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Ref": "LambdaExecutionRole"
+        },
+        "Code": {
+          "S3Bucket": {
+            "Ref": "s3Bucket"
+          },
+          "S3Key": {
+            "Ref": "LambdaCustomResource"
+          }
+        },
+        "Runtime": "nodejs",
+        "Timeout": "25"
+      }
+    },
+
+    "AMICustomResource": {
+      "Type": "Custom::AMICustomResource",
+      "DependsOn": "AddEventSource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": ["AddEventSource", "Arn"]
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "myS3Bucket": {
+          "Ref": "myS3Bucket"
+        },
+        "myLambdaFunctionName": {
+          "Ref": "myLambdaFunction"
+        },
+        "myLambdaFunctionArn": {
+          "Fn::GetAtt": ["myLambdaFunction", "Arn"]
+        }
+      }
+    }
+  }
+}
